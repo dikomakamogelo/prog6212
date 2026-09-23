@@ -1,0 +1,96 @@
+name: Part 1 - Validate Repository
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  # Job 1: checks the repository structure and required Part 1 files
+  validate-structure:
+    name: Validate /docs structure
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Check README exists
+        run: |
+          test -f README.md || { echo "::error::README.md is missing"; exit 1; }
+          echo "README.md found"
+
+      - name: Check /docs folder exists
+        run: |
+          test -d docs || { echo "::error::/docs folder is missing"; exit 1; }
+          echo "/docs folder found"
+
+      - name: Check ERD image (PNG or PDF)
+        run: |
+          if ls docs/*.png docs/*.pdf >/dev/null 2>&1; then
+            echo "ERD found:"; ls docs/*.png docs/*.pdf 2>/dev/null
+          else
+            echo "::error::No ERD (.png or .pdf) found in /docs"; exit 1
+          fi
+
+      - name: Check API endpoint plan
+        run: |
+          test -f docs/API_Endpoint_Plan.md || { echo "::error::docs/API_Endpoint_Plan.md is missing"; exit 1; }
+          for col in "HTTP Method" "Route" "Description" "Role Required" "Request Body" "Expected Response"; do
+            grep -q "$col" docs/API_Endpoint_Plan.md || { echo "::error::Endpoint plan is missing column: $col"; exit 1; }
+          done
+          echo "Endpoint plan found with all six required columns"
+
+      - name: Check SQL script
+        run: |
+          test -f docs/RaceDay_Database.sql || { echo "::error::docs/RaceDay_Database.sql is missing"; exit 1; }
+          TABLES=$(grep -ci "CREATE TABLE" docs/RaceDay_Database.sql)
+          echo "CREATE TABLE statements found: $TABLES"
+          [ "$TABLES" -ge 6 ] || { echo "::error::At least 6 tables are required"; exit 1; }
+          grep -qi "INSERT INTO" docs/RaceDay_Database.sql || { echo "::error::No seed data (INSERT INTO) found"; exit 1; }
+          echo "SQL script contains tables and seed data"
+
+  # Job 2: proves the SQL script runs without errors on a clean SQL Server
+  test-sql-script:
+    name: Run SQL script on clean SQL Server
+    runs-on: ubuntu-latest
+    needs: validate-structure
+    services:
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: "CiTest_Passw0rd!"
+        ports:
+          - 1433:1433
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Wait for SQL Server to start
+        run: |
+          for i in $(seq 1 30); do
+            if docker exec ${{ job.services.mssql.id }} /opt/mssql-tools18/bin/sqlcmd \
+                 -S localhost -U sa -P "CiTest_Passw0rd!" -C -Q "SELECT 1" >/dev/null 2>&1; then
+              echo "SQL Server is ready"; exit 0
+            fi
+            echo "Waiting for SQL Server... ($i)"; sleep 5
+          done
+          echo "::error::SQL Server did not start in time"; exit 1
+
+      - name: Run RaceDay_Database.sql
+        run: |
+          docker cp docs/RaceDay_Database.sql ${{ job.services.mssql.id }}:/tmp/RaceDay_Database.sql
+          docker exec ${{ job.services.mssql.id }} /opt/mssql-tools18/bin/sqlcmd \
+            -S localhost -U sa -P "CiTest_Passw0rd!" -C -b -i /tmp/RaceDay_Database.sql
+
+      - name: Verify seed data row counts
+        run: |
+          docker exec ${{ job.services.mssql.id }} /opt/mssql-tools18/bin/sqlcmd \
+            -S localhost -U sa -P "CiTest_Passw0rd!" -C -b -d RaceDayDB -Q "
+              SELECT 'Users' AS TableName, COUNT(*) AS [Rows] FROM Users UNION ALL
+              SELECT 'Events', COUNT(*) FROM Events UNION ALL
+              SELECT 'Categories', COUNT(*) FROM Categories UNION ALL
+              SELECT 'Enrolments', COUNT(*) FROM Enrolments UNION ALL
+              SELECT 'Results', COUNT(*) FROM Results;"
