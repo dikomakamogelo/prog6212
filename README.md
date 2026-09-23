@@ -10,15 +10,9 @@
 
 ---
 
-## 🎥 Video Presentation
-
-**Part 1 walkthrough:** _[Paste unlisted YouTube link here]_
-
----
-
 ## ✅ CI/CD – Green Build
 
-![Successful GitHub Actions build](docs/images/ci-green-build.png)
+![Successful GitHub Actions build](docs/ci-green-build.png)
 
 The GitHub Actions workflow (`.github/workflows/part1-validation.yml`) runs on every push to `main` and has two jobs:
 1. **Validate /docs structure** checks that the README, `/docs` folder, ERD image, endpoint plan (with all six columns) and SQL script exist, and that the script has at least 6 tables plus seed data.
