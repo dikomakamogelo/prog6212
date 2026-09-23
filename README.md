@@ -107,4 +107,4 @@ The full plan (26 endpoints with method, route, description, role, request body 
 
 ## 🤖 AI Usage Disclosure
 
-AI was used during planning to help draft the initial ERD structure, endpoint plan and SQL script. I modified all of it, and the design decisions above reflect my own understanding.
+AI tools were used during to assist with planning logic to help draft the initial ERD structure, endpoint plan, SQL script, and understanding of concepts. I modified all of it, and the design decisions above reflect my own understanding. AI additionally was used to assist in creating meaningful commit messages in order to uphold professional standards that show efficacy, effectiveness and efficiency. Finally AI assisted in drafting a clean README structure, instructed to advice on document structure, headings, and content.
